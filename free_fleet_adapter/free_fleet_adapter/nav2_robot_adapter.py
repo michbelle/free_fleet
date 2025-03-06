@@ -51,8 +51,10 @@ import zenoh
 
 class Nav2TfHandler:
 
-    def __init__(self, robot_name, zenoh_session, tf_buffer, node):
+    def __init__(self, robot_name, base_tf, map_tf, zenoh_session, tf_buffer, node):
         self.robot_name = robot_name
+        self.base_tf = base_tf
+        self.map_tf = map_tf
         self.zenoh_session = zenoh_session
         self.node = node
         self.tf_buffer = tf_buffer
@@ -81,16 +83,15 @@ class Nav2TfHandler:
 
     def get_transform(self) -> TransformStamped | None:
         try:
-            # TODO(ac): parameterize the frames for lookup
             transform = self.tf_buffer.lookup_transform(
-                namespacify('map', self.robot_name),
-                namespacify('base_footprint', self.robot_name),
+                namespacify(self.map_tf, self.robot_name),
+                namespacify(self.base_tf, self.robot_name),
                 rclpy.time.Time()
             )
             return transform
         except Exception as err:
             self.node.get_logger().info(
-                'Unable to get transform between base_footprint and map: '
+                f'Unable to get transform between {self.base_tf} and {self.map_tf}: '
                 f'{type(err)}: {err}'
             )
         return None
@@ -119,6 +120,17 @@ class Nav2RobotAdapter(RobotAdapter):
         self.nav_goal_id = None
         self.map_name = self.robot_config_yaml['initial_map']
 
+        try:
+            self.base_tf = self.robot_config_yaml['tf_mapping_base']
+        except KeyError:
+            self.base_tf = "base_footprint"
+            self.node.get_logger().debug(f"using as base frame {self.base_tf}")
+        try:
+            self.map_tf = self.robot_config_yaml['tf_mapping_map']
+        except KeyError:
+            self.map_tf = "map"
+            self.node.get_logger().debug(f"using as base frame {self.map_tf}")
+
         # TODO(ac): Only use full battery if sim is indicated
         self.battery_soc = 1.0
 
@@ -127,6 +139,8 @@ class Nav2RobotAdapter(RobotAdapter):
 
         self.tf_handler = Nav2TfHandler(
             self.name,
+            self.base_tf,
+            self.map_tf,
             self.zenoh_session,
             self.tf_buffer,
             self.node
@@ -154,7 +168,7 @@ class Nav2RobotAdapter(RobotAdapter):
         if transform is None:
             error_message = \
                 f'Failed to update robot [{self.name}]: Unable to get ' \
-                f'transform between base_footprint and map'
+                f'transform between {self.base_tf} and {self.map_tf}'
             self.node.get_logger().info(error_message)
             return None
 
@@ -310,7 +324,7 @@ class Nav2RobotAdapter(RobotAdapter):
 
         time_now = self.node.get_clock().now().seconds_nanoseconds()
         stamp = Time(sec=time_now[0], nanosec=time_now[1])
-        header = Header(stamp=stamp, frame_id='map')
+        header = Header(stamp=stamp, frame_id=self.map_tf) #TODO <-- check if frame_id depend on map : self.map_tf = "map"
         position = GeometryMsgs_Point(x=x, y=y, z=z)
         quat = quaternion_from_euler(0, 0, yaw)
         orientation = GeometryMsgs_Quaternion(

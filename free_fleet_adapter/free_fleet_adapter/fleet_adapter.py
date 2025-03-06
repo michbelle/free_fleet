@@ -112,8 +112,10 @@ def start_fleet_adapter(
         please verify that the fleet config is valid.'
 
     # Initialize zenoh
-    zenoh_config = zenoh.Config.from_file(zenoh_config_path) \
-        if zenoh_config_path is not None else zenoh.Config()
+    if zenoh_config_path is not None or zenoh_config_path is not "":
+        zenoh_config = zenoh.Config.from_file(zenoh_config_path)
+    else:
+        zenoh_config = zenoh.Config()
     zenoh_session = zenoh.open(zenoh_config)
 
     # Set up tf2 buffer
