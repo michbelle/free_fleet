@@ -112,7 +112,7 @@ def start_fleet_adapter(
         please verify that the fleet config is valid.'
 
     # Initialize zenoh
-    if zenoh_config_path is not None or zenoh_config_path is not "":
+    if zenoh_config_path != None or zenoh_config_path != "":
         zenoh_config = zenoh.Config.from_file(zenoh_config_path)
     else:
         zenoh_config = zenoh.Config()
